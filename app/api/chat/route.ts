@@ -1,4 +1,9 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -9,10 +14,17 @@ import {
   usageLogs,
 } from "@/db/schema";
 import { getUserModel } from "@/lib/ai/provider";
+import { agentTools } from "@/lib/ai/tools";
 import { calculateCost } from "@/lib/cost";
 import { refundCredit, reserveCredit } from "@/lib/credits";
 import { decrypt } from "@/lib/crypto";
 import { createClient } from "@/lib/supabase/server";
+
+// Think -> Search -> Reason -> (Search again, optional) -> Reason -> Answer.
+// One HTTP request = one credit regardless of how many tool-use steps the
+// model takes within it — reserve/refund below wraps the whole streamText
+// call, not each step.
+const MAX_AGENT_STEPS = 5;
 
 function extractText(message: UIMessage): string {
   return message.parts
@@ -82,8 +94,13 @@ export async function POST(request: Request) {
 
     const result = streamText({
       model,
-      system: "You are a helpful AI assistant.",
+      system:
+        "You are a helpful AI research assistant. Use the webSearch tool " +
+        "when a question needs current information or facts you're not " +
+        "confident about. Cite sources by URL when you use search results.",
       messages: await convertToModelMessages(messages),
+      tools: agentTools,
+      stopWhen: stepCountIs(MAX_AGENT_STEPS),
       onFinish: async ({ text, usage }) => {
         const [assistantMessage] = await db
           .insert(messagesTable)

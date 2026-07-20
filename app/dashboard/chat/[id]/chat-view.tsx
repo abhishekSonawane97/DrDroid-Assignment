@@ -43,11 +43,15 @@ export function ChatView({
               {message.role}
             </div>
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              {message.parts.map((part, i) =>
-                part.type === "text" ? (
-                  <ReactMarkdown key={i}>{part.text}</ReactMarkdown>
-                ) : null,
-              )}
+              {message.parts.map((part, i) => {
+                if (part.type === "text") {
+                  return <ReactMarkdown key={i}>{part.text}</ReactMarkdown>;
+                }
+                if (part.type === "tool-webSearch") {
+                  return <SearchToolPart key={i} part={part} />;
+                }
+                return null;
+              })}
             </div>
           </div>
         ))}
@@ -70,6 +74,55 @@ export function ChatView({
           Send
         </Button>
       </form>
+    </div>
+  );
+}
+
+interface SearchToolOutput {
+  query?: string;
+  results?: { title: string; link: string; snippet: string }[];
+}
+
+// useChat isn't parameterized with our server tool set, so the tool part's
+// input/output arrive as `unknown` — matches lib/ai/tools.ts's webSearch
+// tool shape (query in, { query, results } out).
+function SearchToolPart({
+  part,
+}: {
+  part: { state: string; input?: unknown; output?: unknown };
+}) {
+  if (part.state !== "output-available") {
+    const input = part.input as { query?: string } | undefined;
+    return (
+      <p className="text-muted-foreground not-prose text-sm italic">
+        🔍 Searching{input?.query ? ` for "${input.query}"` : "…"}
+      </p>
+    );
+  }
+
+  const output = part.output as SearchToolOutput | undefined;
+  const results = output?.results ?? [];
+  if (results.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="not-prose bg-muted/50 my-2 rounded-lg border p-3">
+      <p className="text-muted-foreground mb-1 text-xs font-medium">Sources</p>
+      <ul className="space-y-1">
+        {results.map((r) => (
+          <li key={r.link} className="text-xs">
+            <a
+              href={r.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {r.title}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

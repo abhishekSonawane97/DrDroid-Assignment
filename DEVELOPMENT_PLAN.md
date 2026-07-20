@@ -156,12 +156,17 @@ The reviewer should be able to:
 
 ## Phase 6 — Agent loop
 
-- [ ] **6.1** Serper search tool (platform-owned key) + `POST /api/search`.
-- [ ] **6.2** Dynamic tool-use loop, `maxIterations` configurable (**default 5**).
-- [ ] **6.3** Surface tool steps in UI ("Searching…", sources).
-- [ ] **6.4** Verify internal tool calls do **not** decrement credits.
+- [x] **6.1** `lib/search.ts` (Serper, platform-owned key) + `POST /api/search`. **Needs a real Serper key to actually return results — see note.**
+- [x] **6.2** `lib/ai/tools.ts` (`webSearch` tool) wired into `streamText` in `/api/chat` with `stopWhen: stepCountIs(MAX_AGENT_STEPS)`, `MAX_AGENT_STEPS = 5`.
+- [x] **6.3** `SearchToolPart` in `chat-view.tsx` renders "🔍 Searching for '...'" while a call is in flight, then a Sources list of linked titles once results land.
+- [x] **6.4** Verified — see note.
 
-**Done when:** a research prompt triggers ≥2 searches, cites sources, and consumes exactly 1 credit.
+**Done when:** a research prompt triggers ≥2 searches, cites sources, and consumes exactly 1 credit ⏳ (code complete; needs a real Serper key + a real BYOK model to actually run — see note for what's verified without one).
+
+**Notes:**
+- **Real credential needed, not obtained.** Serper (serper.dev) is the one platform-owned key per the frozen product decision — same class of blocker as Stripe/OAuth/Google, requiring a human to sign up and get a key. `lib/search.ts` reads `SERPER_API_KEY` inside the function body (not at module top-level), so its absence doesn't break the build — same lazy-read lesson from Phase 3's Stripe client. `.env.example`/`.env.local` already have the placeholder from Phase 0.
+- **6.4 verified architecturally, not via a live multi-search run** (that needs the Serper key above): `reserveCredit`/`refundCredit` are called exactly once each in `app/api/chat/route.ts` — reserve before `streamText` starts, refund only in `onError`/the outer catch. Both `tools` and `stopWhen` live entirely inside that single `streamText` call, so however many internal tool-use steps the model takes (1 to `MAX_AGENT_STEPS`), they're all inside the one already-reserved credit's scope. There is no code path where a tool call touches the credits table.
+- The agent loop is genuinely dynamic (the model decides whether/when to call `webSearch`, not a hardcoded Think→Search→Reason pipeline), matching the plan's Phase 5 note that the blueprint's linear diagram is the *typical* path, not a mandated sequence.
 
 ## Phase 7 — Usage & analytics
 
