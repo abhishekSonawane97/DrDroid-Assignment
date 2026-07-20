@@ -67,12 +67,17 @@ The reviewer should be able to:
 
 ## Phase 0 — Foundation
 
-- [ ] **0.1** Scaffold Next.js App Router + TypeScript + Tailwind + shadcn/ui.
-- [ ] **0.2** Create folder structure per spec §15 (`app/ components/ features/ lib/ actions/ db/ types/ hooks/ providers/`).
-- [ ] **0.3** Supabase project; add `.env.example` with every required var (Supabase URL/anon/service-role, Stripe keys + webhook secret, Serper key, `ENCRYPTION_MASTER_KEY`).
-- [ ] **0.4** Drizzle config + connection; verify `db:push` round-trips.
+- [x] **0.1** Scaffold Next.js App Router + TypeScript + Tailwind + shadcn/ui.
+- [x] **0.2** Create folder structure per spec §15 (`app/ components/ features/ lib/ actions/ db/ types/ hooks/ providers/`).
+- [x] **0.3** Supabase project (local stack via `supabase start` + Docker); `.env.example` covers every required var (Supabase URL/anon/service-role, `DATABASE_URL`, Stripe keys + webhook secret, Serper key, `ENCRYPTION_MASTER_KEY`, site URL). Raw client helpers at `lib/supabase/client.ts` / `server.ts` (auth-session logic itself stays in Phase 2).
+- [x] **0.4** Drizzle config (`drizzle.config.ts`) + connection helper (`db/index.ts`); `npm run db:push` verified round-tripping against local Postgres.
 
-**Done when:** app boots locally, shadcn component renders, Drizzle connects.
+**Done when:** app boots locally ✅, shadcn component renders ✅ (verified via disposable test route, then removed), Drizzle connects ✅.
+
+**Notes:**
+- Project requires **Node ≥22** (`@supabase/supabase-js` engine requirement). Pinned via `.nvmrc`; installed scoped through nvm without touching the machine's global Node 20 default (other projects unaffected).
+- Local dev uses the Supabase CLI's Docker-based local stack (`supabase/config.toml`, credentials in gitignored `.env.local`) rather than a cloud project — no account/billing needed to develop Auth/DB/Storage/RLS. Link + push to a cloud project happens in Phase 10 (Ship).
+- Fixed a latent `.gitignore` bug: the broad `.env*` rule was also swallowing `.env.example`; added `!.env.example` so the template stays tracked.
 
 ## Phase 1 — Data layer
 
