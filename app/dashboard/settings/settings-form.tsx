@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MODEL_PRICING } from "@/lib/model-pricing";
+
+const PRESET_MODELS = Object.keys(MODEL_PRICING);
+const CUSTOM_OPTION = "__custom__";
 
 interface SettingsState {
   endpoint: string;
@@ -22,6 +26,7 @@ export function SettingsForm() {
   const [endpoint, setEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
+  const [useCustomModel, setUseCustomModel] = useState(false);
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -36,7 +41,9 @@ export function SettingsForm() {
       .then((data: { configured: boolean } & Partial<SettingsState>) => {
         if (data.configured) {
           setEndpoint(data.endpoint ?? "");
-          setSelectedModel(data.selectedModel ?? "");
+          const model = data.selectedModel ?? "";
+          setSelectedModel(model);
+          setUseCustomModel(model !== "" && !PRESET_MODELS.includes(model));
           setMaskedKey(data.maskedKey ?? null);
         }
       })
@@ -117,18 +124,58 @@ export function SettingsForm() {
 
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">Model</label>
-        <Input
-          placeholder="gpt-4o-mini"
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-        />
+        {useCustomModel ? (
+          <>
+            <Input
+              placeholder="your-custom-model-id"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setUseCustomModel(false);
+                setSelectedModel("");
+              }}
+              className="text-muted-foreground self-start text-xs hover:underline"
+            >
+              Choose from list instead
+            </button>
+          </>
+        ) : (
+          <select
+            value={selectedModel}
+            onChange={(e) => {
+              if (e.target.value === CUSTOM_OPTION) {
+                setUseCustomModel(true);
+                setSelectedModel("");
+              } else {
+                setSelectedModel(e.target.value);
+              }
+            }}
+            className="border-input bg-background h-8 rounded-lg border px-2.5 text-sm"
+          >
+            <option value="" disabled>
+              Select a model
+            </option>
+            {PRESET_MODELS.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
+            <option value={CUSTOM_OPTION}>Other (enter manually)</option>
+          </select>
+        )}
         {availableModels.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {availableModels.map((model) => (
               <button
                 key={model}
                 type="button"
-                onClick={() => setSelectedModel(model)}
+                onClick={() => {
+                  setSelectedModel(model);
+                  setUseCustomModel(!PRESET_MODELS.includes(model));
+                }}
                 className="bg-muted hover:bg-muted/70 rounded-md px-2 py-1 text-xs"
               >
                 {model}
