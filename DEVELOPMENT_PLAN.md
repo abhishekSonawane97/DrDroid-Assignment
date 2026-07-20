@@ -127,12 +127,16 @@ The reviewer should be able to:
 
 ## Phase 4 — API settings (BYOK)
 
-- [ ] **4.1** `lib/crypto.ts` — symmetric encrypt/decrypt with server-only `ENCRYPTION_MASTER_KEY`.
-- [ ] **4.2** `POST /api/settings` — save endpoint + encrypted key + model. **Key never returned to the client** (mask as `sk-…abcd`).
-- [ ] **4.3** `GET /api/models` — fetch the user's `/v1/models`; graceful fallback if unsupported.
-- [ ] **4.4** Settings UI + "Test connection" validation ping.
+- [x] **4.1** `lib/crypto.ts` — AES-256-GCM encrypt/decrypt with server-only `ENCRYPTION_MASTER_KEY`; 5 unit tests (round-trip, non-determinism, tamper detection, masking).
+- [x] **4.2** `GET`/`POST /api/settings` — save endpoint + encrypted key + model. **Key never returned to the client** (mask as `sk-…abcd`); leaving the key field blank on update keeps the existing one rather than forcing re-entry.
+- [x] **4.3** `GET /api/models` — fetches the user's `/v1/models`; never throws, always a usable JSON shape (empty list + error message) if the endpoint doesn't support it.
+- [x] **4.4** `app/dashboard/settings` (+ a minimal `app/dashboard/layout.tsx` nav shell, since Settings needs somewhere to live) — form + "Test connection" (saves, then calls `/api/models`, shows model count or the error).
 
-**Done when:** key saves, round-trips server-side, is never present in any network response or client bundle.
+**Done when:** key saves ✅, round-trips server-side ✅ (verified: encrypted value stored differs from plaintext, decrypts back to the exact original, against real Postgres), is never present in any network response or client bundle ✅ (every `NextResponse.json` call in both routes audited — grep-verified only `maskedKey` is ever returned, never `encryptedKey` or the raw key; `lib/crypto.ts` uses `node:crypto` so it can't be pulled into a client bundle even by accident).
+
+**Notes:**
+- **Real gap found and fixed:** `npm test` failed for anyone who hadn't manually sourced `.env.local` — Vitest (unlike `next dev`/`next build`) doesn't load Next's env files automatically. Fixed with `vitest.config.ts` + `vitest.setup.ts` using Node's built-in `process.loadEnvFile()` (no new dependency).
+- Full HTTP-level testing of `/api/settings` and `/api/models` (as an authenticated browser session) wasn't done — same class of blocker as Phases 2/3, and per the "move fast" directive, the DB-level + static-audit verification above was judged sufficient rather than fabricating a session JWT for a fuller test.
 
 ## Phase 5 — Chat core
 
