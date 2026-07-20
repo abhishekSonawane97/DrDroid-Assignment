@@ -81,12 +81,18 @@ The reviewer should be able to:
 
 ## Phase 1 — Data layer
 
-- [ ] **1.1** Drizzle schema — `users` (+`is_unlocked`, `unlocked_via`, `credits`, `created_at`), `chat_threads`, `messages` (+`pdf_url`), `api_keys` (+`user_id`), `usage_logs` (+`user_id`, `thread_id`, `message_id`, `model`, split token fields, `estimated_cost`, `created_at`), `payments` (+`user_id`, `status`, `stripe_event_id`), `coupon_redemptions`.
-- [ ] **1.2** Migrations + **RLS policies** on every user-owned table (owner-only read/write).
-- [ ] **1.3** `lib/model-pricing.ts` — `MODEL_PRICING` config (input/output/cache-read/cache-write per model).
-- [ ] **1.4** `lib/cost.ts` — cost calculator; returns `null` for unknown models. **Unit tests here.**
+- [x] **1.1** Drizzle schema — `users` (+`is_unlocked`, `unlocked_via`, `credits`, `created_at`), `chat_threads`, `messages` (+`pdf_url`), `api_keys` (+`user_id`), `usage_logs` (+`user_id`, `thread_id`, `message_id`, `model`, split token fields, `estimated_cost`, `created_at`), `payments` (+`user_id`, `status`, `stripe_event_id`), `coupon_redemptions`.
+- [x] **1.2** Migrations (`db:push`) + **RLS policies** on every user-owned table (owner-only read/write) — see note below.
+- [x] **1.3** `lib/model-pricing.ts` — `MODEL_PRICING` config (input/output/cache-read/cache-write per model).
+- [x] **1.4** `lib/cost.ts` — cost calculator; returns `null` for unknown models. **6 unit tests, all passing** (`npm test`, via Vitest).
 
-**Done when:** migrations apply, RLS blocks cross-user reads (verify with two accounts), cost tests pass.
+**Done when:** migrations apply ✅, RLS blocks cross-user reads ✅ (verified with two simulated accounts — see note), cost tests pass ✅.
+
+**Notes:**
+- **Real bug found and fixed:** `drizzle-kit push` (0.31.x) silently drops the `using`/`withCheck` expressions on schema-defined `pgPolicy()` — it creates policies with no actual condition (`qual`/`with_check` both `null`), which either blocks everything or allows everything depending on command, not the intended owner-only rule. Verified empirically (seeded two test rows, queried as each simulated user, got zero rows back even for the owner). Fix: `db/schema.ts` only calls `.enableRLS()`; the real policy SQL (`CREATE POLICY ... USING (auth.uid() = user_id)`, all 14 policies) lives in `supabase/seed.sql`, applied once after `db:push`.
+- Also had to add baseline `GRANT`s for the `authenticated` role in the same file — Postgres requires a base table privilege before RLS policies are even evaluated, and Drizzle-managed tables don't get Supabase's usual auto-grants. Used `alter default privileges` so this covers future tables too, not just the current 7.
+- RLS isolation was verified by simulating two different `auth.uid()` values via Postgres session variables (`set local role authenticated; set local request.jwt.claims = ...`) directly against the local Postgres — full OAuth login doesn't exist until Phase 2, so this is the standard way to test RLS policies in isolation before Auth is wired up.
+- Added `vitest` as a dev dependency (`npm test`) — required to satisfy this phase's explicit "unit tests here" requirement for `lib/cost.ts`.
 
 ## Phase 2 — Authentication
 
