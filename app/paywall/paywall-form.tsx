@@ -11,7 +11,6 @@ export function PaywallForm() {
   const [code, setCode] = useState("");
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState(false);
 
   async function redeemCoupon() {
     setCouponError(null);
@@ -31,19 +30,6 @@ export function PaywallForm() {
       router.refresh();
     } finally {
       setCouponLoading(false);
-    }
-  }
-
-  async function startCheckout() {
-    setPaymentLoading(true);
-    try {
-      const res = await fetch("/api/payment", { method: "POST" });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } finally {
-      setPaymentLoading(false);
     }
   }
 
@@ -69,13 +55,14 @@ export function PaywallForm() {
         <div className="bg-border h-px flex-1" />
       </div>
 
-      <Button
-        onClick={startCheckout}
-        disabled={paymentLoading}
-        variant="outline"
-      >
-        Pay $5 with Stripe
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button disabled variant="outline">
+          Pay with card
+        </Button>
+        <p className="text-muted-foreground text-center text-sm">
+          Payment integration coming soon.
+        </p>
+      </div>
     </div>
   );
 }
