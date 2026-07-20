@@ -52,38 +52,42 @@ export default async function UsagePage() {
       <h2 className="text-muted-foreground mb-2 text-sm font-medium">
         By model
       </h2>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-muted-foreground border-b text-left">
-            <th className="py-2 font-medium">Model</th>
-            <th className="py-2 font-medium">Requests</th>
-            <th className="py-2 font-medium">Prompt</th>
-            <th className="py-2 font-medium">Completion</th>
-            <th className="py-2 font-medium">Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {byModel.map((row) => (
-            <tr key={row.model} className="border-b">
-              <td className="py-2">{row.model}</td>
-              <td className="py-2">{row.requests}</td>
-              <td className="py-2">{row.promptTokens.toLocaleString()}</td>
-              <td className="py-2">{row.completionTokens.toLocaleString()}</td>
-              <td className="py-2">${Number(row.cost).toFixed(4)}</td>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="text-muted-foreground border-b text-left">
+              <th className="py-2 font-medium">Model</th>
+              <th className="py-2 font-medium">Requests</th>
+              <th className="py-2 font-medium">Prompt</th>
+              <th className="py-2 font-medium">Completion</th>
+              <th className="py-2 font-medium">Cost</th>
             </tr>
-          ))}
-          {byModel.length === 0 && (
-            <tr>
-              <td
-                colSpan={5}
-                className="text-muted-foreground py-4 text-center"
-              >
-                No usage yet.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {byModel.map((row) => (
+              <tr key={row.model} className="border-b">
+                <td className="py-2">{row.model}</td>
+                <td className="py-2">{row.requests}</td>
+                <td className="py-2">{row.promptTokens.toLocaleString()}</td>
+                <td className="py-2">
+                  {row.completionTokens.toLocaleString()}
+                </td>
+                <td className="py-2">${Number(row.cost).toFixed(4)}</td>
+              </tr>
+            ))}
+            {byModel.length === 0 && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="text-muted-foreground py-4 text-center"
+                >
+                  No usage yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

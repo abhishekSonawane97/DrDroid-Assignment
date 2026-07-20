@@ -63,7 +63,7 @@ export function Sidebar() {
   }
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col gap-1 border-r p-4">
+    <nav className="flex max-h-64 w-full shrink-0 flex-col gap-1 overflow-y-auto border-b p-4 sm:h-screen sm:max-h-none sm:w-56 sm:border-r sm:border-b-0">
       <button
         onClick={createThread}
         className="hover:bg-muted mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"

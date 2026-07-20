@@ -1,7 +1,9 @@
 import {
   convertToModelMessages,
+  createUIMessageStreamResponse,
   stepCountIs,
   streamText,
+  toUIMessageStream,
   type UIMessage,
 } from "ai";
 import { eq } from "drizzle-orm";
@@ -18,6 +20,7 @@ import { getAgentTools } from "@/lib/ai/tools";
 import { calculateCost } from "@/lib/cost";
 import { refundCredit, reserveCredit } from "@/lib/credits";
 import { decrypt } from "@/lib/crypto";
+import { classifyProviderError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 
 // Think -> Search -> Reason -> (Search again, optional) -> Reason -> Answer.
@@ -148,7 +151,16 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    // toUIMessageStreamResponse() is deprecated in this AI SDK version in
+    // favor of the standalone helpers below. onError here controls the
+    // friendly message that actually reaches the client — the onError
+    // above only handles the credit refund, a separate concern.
+    return createUIMessageStreamResponse({
+      stream: toUIMessageStream({
+        stream: result.fullStream,
+        onError: classifyProviderError,
+      }),
+    });
   } catch (err) {
     // Failed before streaming even started (e.g. persisting the user
     // message) — refund the credit reserved above.

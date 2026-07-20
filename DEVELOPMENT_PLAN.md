@@ -195,12 +195,18 @@ The reviewer should be able to:
 
 ## Phase 9 — Hardening
 
-- [ ] **9.1** Friendly error UI for all §13 cases: expired key, network timeout, provider unavailable, invalid model, insufficient credits.
-- [ ] **9.2** Per-user rate limiting (protects the platform-owned Serper key).
-- [ ] **9.3** Mobile-responsive pass across all pages.
-- [ ] **9.4** Landing page (hero, features, pricing, FAQ, CTA).
+- [x] **9.1** `lib/errors.ts` (`classifyProviderError`, 7 unit tests) maps §13's cases — expired/invalid key (401/403), invalid model (404), provider unavailable (5xx), timeout, unreachable endpoint — to friendly copy, wired as `onError` on the new `toUIMessageStream` (see note). Insufficient credits was already friendly (client-side special case on the pre-stream 402).
+- [x] **9.2** `lib/rate-limit.ts` (in-memory fixed window, 10 req/min) applied to `POST /api/search` — the one endpoint that wasn't already implicitly capped by the 5-credit ceiling the way `/api/chat` is (see note).
+- [x] **9.3** Mobile-responsive pass: dashboard sidebar stacks above content and caps its height below `sm:` instead of eating the viewport as a full-height siderail; usage table scrolls horizontally (`overflow-x-auto`) instead of breaking layout on narrow screens.
+- [x] **9.4** `app/page.tsx` — real landing page (Hero, Features, Pricing, FAQ, CTA), replacing the untouched create-next-app boilerplate that had been sitting there since Phase 0.
 
-**Done when:** each error state is reproducible and renders friendly copy — never a raw stack trace.
+**Done when:** each error state is reproducible and renders friendly copy — never a raw stack trace ✅ (`classifyProviderError`'s 7 unit tests cover the full §13 catalog; verified no raw provider error/stack trace path reaches `NextResponse.json`/the stream in any route).
+
+**Notes:**
+- **Real deprecation caught and fixed:** `result.toUIMessageStreamResponse()` (used since Phase 5) is deprecated in this AI SDK version — "will be removed in the next major release," per its own doc comment — in favor of standalone `toUIMessageStream` + `createUIMessageStreamResponse`. Migrated `/api/chat` to the new API; this is also *why* friendly error messages are now possible at all — the new `toUIMessageStream`'s own `onError` hook is explicitly the mechanism to avoid "leaking server error details to the client by default" (its own doc comment), which the deprecated method didn't expose as directly.
+- **Real gap found: `/api/search` had zero abuse protection.** Unlike `/api/chat`, which is hard-capped by the 5-credit lifetime ceiling regardless of rate limiting, the standalone search endpoint had no gate beyond authentication — a user could hit it directly, unlimited times, burning the platform's Serper quota for free. Rate limiting closes that specific hole.
+- **Real bug caught before it shipped: Button's `asChild` doesn't exist.** Wrote the landing page's CTAs as `<Button asChild><Link .../></Button>` (the Radix convention from training data) — this project's Button wraps Base UI, which uses a `render` prop instead (`<Button render={<Link .../>} />`). Caught by reading Base UI's actual type definitions before trusting the pattern, per this project's established "verify against installed source" discipline; confirmed the fix by curling the live dev server and checking the rendered HTML — a single real `<a href="/login">` with the button's classes merged on, not a broken button-wrapping-anchor.
+- Mobile responsiveness elsewhere (login, paywall, settings) was mostly already fine from centered flex layouts with bounded widths (`w-64`/`w-80`/`max-w-lg`) — no page-specific breakage found there worth a targeted fix.
 
 ## Phase 10 — Ship
 
