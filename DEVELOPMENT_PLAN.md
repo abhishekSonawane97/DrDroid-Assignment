@@ -210,8 +210,20 @@ The reviewer should be able to:
 
 ## Phase 10 — Ship
 
-- [ ] **10.1** Deploy to Vercel: env vars, OAuth redirect URIs, live Stripe webhook endpoint.
+- [ ] **10.1** Deploy to Vercel: env vars, OAuth redirect URIs.
 - [ ] **10.2** Full E2E walkthrough on production against the Definition of Done.
+
+**Blocked on the user's own accounts** — this is the one phase that needs real credentials/logins only a human can create (Vercel account, production Supabase project, production OAuth redirect registration). Everything on the code side is ready: `npm run build`/`lint`/`test` all pass, no hardcoded `localhost`/`127.0.0.1` anywhere in `app/`, `lib/`, `components/`, `db/`, or `proxy.ts` (grep-verified), and the Vercel CLI is installed locally (`npx vercel --version` → works) so it's ready the moment credentials exist.
+
+**Runbook, in order:**
+
+1. **Production Supabase project** — [supabase.com/dashboard](https://supabase.com/dashboard) → New Project. From Project Settings, collect: Project URL, `anon` key, `service_role` key (Settings → API), and the Postgres connection string (Settings → Database — use the **Transaction pooler** string, port `6543`, not the direct `5432` connection; Vercel's serverless functions open many short-lived connections and the direct connection will exhaust Postgres's connection limit under real concurrency).
+2. **Migrate the schema** — with `DATABASE_URL` pointed at the new project, run `npm run db:push`, then apply `supabase/seed.sql` against it (grants, RLS policies, the `auth.users` bootstrap trigger, the `reports` Storage bucket + its policies — none of this exists in a fresh project until this file runs).
+3. **Google OAuth for production** — in the *same* Google Cloud OAuth client from Phase 2 (Google allows multiple redirect URIs per client, no new app needed), add `https://<project-ref>.supabase.co/auth/v1/callback`. Then, in the production Supabase project's own dashboard (Authentication → Providers — **not** `supabase/config.toml`, which only ever applies to the local CLI stack), enable Google and paste in the client ID/secret.
+4. **Vercel project** — [vercel.com/new](https://vercel.com/new), import `abhishekSonawane97/DrDroid-Assignment` from GitHub. Vercel auto-detects Next.js; no config overrides needed.
+5. **Env vars in Vercel** (Project Settings → Environment Variables) — every key in `.env.example`, pointed at the production values from steps 1–3: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (pooler string), `GOOGLE_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, `SERPER_API_KEY`, `ENCRYPTION_MASTER_KEY` (generate a **new** one for production — `openssl rand -base64 32` — don't reuse the local dev one), and `NEXT_PUBLIC_SITE_URL` set to the actual Vercel URL once known (a redeploy is needed after this one, since it's baked in at build time for OAuth redirects). `GITHUB_CLIENT_ID`/`SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET`/`STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` can stay blank — GitHub OAuth and payment are both inactive by product decision (see Phase 2 and the payment-gateway note under Phase 3).
+6. **Deploy** — push to `main` (auto-deploys once connected) or trigger manually from the Vercel dashboard.
+7. **10.2 walkthrough** — once live, re-run the Definition of Done checklist below against the real URL: sign up, unlock via `SID_DRDROID`, configure a real BYOK key, send a research prompt, generate a PDF, check the usage dashboard.
 
 ---
 
