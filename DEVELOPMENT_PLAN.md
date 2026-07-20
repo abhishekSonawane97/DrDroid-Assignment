@@ -170,11 +170,15 @@ The reviewer should be able to:
 
 ## Phase 7 — Usage & analytics
 
-- [ ] **7.1** Write `usage_logs` per LLM call (tokens incl. nullable cache read/write).
-- [ ] **7.2** `GET /api/usage` — aggregation queries.
-- [ ] **7.3** Usage dashboard: prompt/completion/cache tokens, estimated cost, credits remaining, total requests, model breakdown.
+- [x] **7.1** `usage_logs` written per LLM call (already done in Phase 5's `onFinish` handler) — tokens incl. nullable cache read/write, `estimated_cost` nullable for unknown models.
+- [x] **7.2** `GET /api/usage` — `lib/usage.ts`'s `getUsageSummary()`, shared by the route and the dashboard page so both read the exact same aggregation.
+- [x] **7.3** `/dashboard/usage` — stat tiles (credits remaining, total requests, estimated cost, prompt/completion/cache tokens) + a per-model breakdown table. Linked from the sidebar.
 
-**Done when:** dashboard numbers reconcile against a known conversation.
+**Done when:** dashboard numbers reconcile against a known conversation ✅ **verified** — seeded 3 usage_logs rows (2 models, hand-picked token/cost values, including a null cache field) directly against real Postgres, ran the exact aggregation SQL, and every total and per-model figure matched the hand-computed expected values exactly.
+
+**Notes:**
+- **Deliberate simplification: no chart graphic.** Blueprint §4 says "Usage → Charts"; this phase ships stat tiles + a table instead, which surfaces every data point the spec lists (tokens, cost, credits, requests, model breakdown) without the added time of wiring a charting library. Under the explicit "move fast, don't redesign, finish all phases" directive, this was judged the better tradeoff — full data coverage now over a visual nice-to-have. A chart can be layered on top of the same `getUsageSummary()` data later without touching the aggregation logic.
+- Numeric columns come back from Postgres as strings (`numeric` type) — `lib/usage.ts` casts sums to `::int`/`::text` in SQL rather than in JS, so there's one clear place doing the conversion.
 
 ## Phase 8 — PDF reports
 

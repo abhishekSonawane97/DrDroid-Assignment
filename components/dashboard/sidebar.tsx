@@ -120,8 +120,14 @@ export function Sidebar() {
       </div>
 
       <Link
-        href="/dashboard/settings"
+        href="/dashboard/usage"
         className="hover:bg-muted mt-2 rounded-lg px-3 py-2 text-sm font-medium"
+      >
+        Usage
+      </Link>
+      <Link
+        href="/dashboard/settings"
+        className="hover:bg-muted rounded-lg px-3 py-2 text-sm font-medium"
       >
         Settings
       </Link>
