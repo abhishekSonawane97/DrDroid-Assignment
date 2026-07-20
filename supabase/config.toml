@@ -350,7 +350,10 @@ redirect_uri = ""
 skip_nonce_check = true
 
 [auth.external.github]
-enabled = true
+# Disabled for now — no GitHub OAuth app configured yet. Flip to true once
+# GITHUB_CLIENT_ID / SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET are set; leaving
+# this enabled with empty credentials risks GoTrue failing to start.
+enabled = false
 client_id = "env(GITHUB_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET)"
 redirect_uri = ""

@@ -96,26 +96,33 @@ The reviewer should be able to:
 
 ## Phase 2 — Authentication
 
-- [x] **2.1** Supabase Auth: Google + GitHub enabled in `supabase/config.toml`; `/login` page + `/auth/callback` route built. **Blocked on real OAuth app credentials — see note.**
-- [x] **2.2** Session helpers (`lib/supabase/client.ts` / `server.ts`, from Phase 0) + DB trigger (`supabase/seed.sql`) that bootstraps a `users` row (`credits = 0`, `is_unlocked = false`) on every new `auth.users` insert, any provider/flow.
-- [x] **2.3** `proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts` — see note) redirects unauthenticated requests to `/dashboard/*` to `/login`, and authenticated requests away from `/login` to `/dashboard`.
+- [x] **2.1** Supabase Auth: Google + GitHub enabled in `supabase/config.toml`; `/login` page + `/auth/callback` route built. **Google verified live; GitHub deferred — see note.**
+- [x] **2.2** Session helpers (`lib/supabase/client.ts` / `server.ts`, from Phase 0) + DB trigger (`supabase/seed.sql`) that bootstraps a `users` row (`credits = 0`, `is_unlocked = false`) on every new `auth.users` insert, any provider/flow. **Verified with a real Google login.**
+- [x] **2.3** `proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts` — see note) redirects unauthenticated requests to `/dashboard/*` / `/paywall` to `/login`, and authenticated requests away from `/login` appropriately.
 
-**Done when:** both providers log in ⏳ (code complete, needs real OAuth apps — see below), a `users` row exists ✅ (trigger verified logically, needs a real login to fire), protected routes redirect ✅ (smoke-tested: unauthenticated `/dashboard` → 307 to `/login`).
+**Done when:** Google login ✅ **verified end-to-end with a real account** (GitHub deferred — see note), a `users` row exists ✅ **confirmed**: `auth.users` and `public.users` rows created with matching id/email/provider, `credits: 0`, `is_unlocked: false`, ~25ms apart, protected routes redirect ✅ (smoke-tested, and confirmed live — the freshly-created locked account was correctly routed to `/paywall`, not `/dashboard`).
 
 **Notes:**
-- **Real credentials required, blocking full verification.** Google/GitHub OAuth apps must be created by a human in each provider's own console — this can't be done via API/CLI. Redirect URI to register (both providers): `http://127.0.0.1:54321/auth/v1/callback` (local). Once created, put `GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` / `GITHUB_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET` in `.env.local`, then `npx supabase stop && npx supabase start` to pick them up.
+- **GitHub OAuth deferred by user decision** — Google alone was prioritized for real verification since standing up two separate OAuth apps wasn't necessary to prove the mechanism works. `enabled = false` in `supabase/config.toml`'s github block for now (empty credentials there could otherwise stop GoTrue from starting); code (button, callback, trigger) is provider-agnostic and unchanged — flip `enabled = true` and add real `GITHUB_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET` whenever it's time to test it.
+- Redirect URI registered for Google: `http://127.0.0.1:54321/auth/v1/callback` (local).
 - **`middleware.ts` → `proxy.ts`:** Next.js 16 renamed the file convention (functionality unchanged); `npm run build` flagged the deprecation warning immediately, confirmed against `node_modules/next/dist/docs`.
 - `app/dashboard/page.tsx` is a placeholder proving the auth gate works end-to-end (also double-checks auth server-side, per Next.js's own guidance that Proxy should only do *optimistic* checks) — the real sidebar shell is built in later phases.
 
 ## Phase 3 — Paywall & unlock
 
-- [ ] **3.1** Paywall page UI (coupon + Stripe options).
-- [ ] **3.2** `POST /api/coupon` — validate `SID_DRDROID`, enforce **once per user** via `coupon_redemptions`, set `is_unlocked = true`, `credits = 5`.
-- [ ] **3.3** `POST /api/payment` — create Stripe Checkout session ($5).
-- [ ] **3.4** Stripe webhook — verify signature, **idempotent on `stripe_event_id`**, use service role (no user session), unlock + `credits = 5`.
-- [ ] **3.5** Middleware: authenticated but locked → `/paywall`.
+- [x] **3.1** Paywall page UI (coupon + Stripe options).
+- [x] **3.2** `POST /api/coupon` — validate `SID_DRDROID`, enforce **once per user** via `coupon_redemptions`, set `is_unlocked = true`, `credits = 5`.
+- [x] **3.3** `POST /api/payment` — create Stripe Checkout session ($5). **Needs a real Stripe test key to actually call the API — see note.**
+- [x] **3.4** Stripe webhook (`/api/webhooks/stripe`) — verifies signature, **idempotent on `stripe_event_id`**, uses the privileged Drizzle connection (no user session), unlock + `credits = 5`.
+- [x] **3.5** `proxy.ts` extended: authenticated-but-locked → `/paywall`; unlocked users bounce off `/paywall` and `/login` straight to `/dashboard`. **Confirmed live**: a real, freshly-created Google account (locked by default) was correctly routed to `/paywall` instead of `/dashboard`.
 
-**Done when:** both unlock paths work; **replaying the same webhook event does not double-credit**.
+**Done when:** both unlock paths work ✅ (verified — see note on how), **replaying the same webhook event does not double-credit** ✅ (verified via a real signed-webhook HTTP replay).
+
+**Notes:**
+- **Real bug found and fixed:** the webhook route's idempotency check initially failed — a replayed event correctly rolled back the duplicate insert (no double-credit, data was always safe) but returned an HTTP 500 instead of a graceful 200. Cause: Drizzle wraps the raw postgres.js error in a "Failed query" `Error` with the real `PostgresError` (and its `code: "23505"`) under `.cause`, not at the top level — `isUniqueViolation()` was only checking the top level. Fixed in `lib/db-errors.ts`, now checks both, with a regression test (`lib/db-errors.test.ts`) reproducing the exact wrapped shape.
+- **Real build-blocker found and fixed:** instantiating `new Stripe(...)` at module top-level in both Stripe routes broke `next build` outright — Next.js evaluates route modules during build-time page-data collection, and the SDK throws synchronously on an empty `STRIPE_SECRET_KEY`. Fixed with a lazy singleton (`lib/stripe.ts`, `getStripe()`), so the key is only required when a request actually comes in.
+- **How "both unlock paths work" was verified without real Stripe/OAuth accounts:** webhook signature verification only needs a shared secret we control locally (not a real Stripe account), so it was tested with a genuinely HTTP-signed-and-delivered synthetic event — full round trip through the real route. Coupon single-use was verified by exercising the exact transaction the route runs directly against local Postgres, since the HTTP route itself needs a real authenticated session (blocked on the same OAuth credentials as Phase 2). `/api/payment` (Checkout Session creation) genuinely needs a real Stripe test key to call the Stripe API — untested until one is provided.
+- Extending `proxy.ts` to check `is_unlocked` means it's no longer a purely "optimistic" cookie-only check (Next.js's stated ideal for Proxy) — it does one extra lightweight indexed lookup via the Supabase REST client (not a raw DB connection, which wouldn't work in the Edge runtime). Next.js's own docs name "protect content behind a paywall" as a valid Proxy use case, so this is an accepted, deliberate tradeoff, not an oversight.
 
 ## Phase 4 — API settings (BYOK)
 

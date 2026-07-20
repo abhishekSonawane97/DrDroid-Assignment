@@ -1,8 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Extended in Phase 3 with the locked/unlocked (paywall) gate.
-const PROTECTED_PREFIXES = ["/dashboard"];
+const AUTH_REQUIRED_PREFIXES = ["/dashboard", "/paywall"];
+const UNLOCK_REQUIRED_PREFIXES = ["/dashboard"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -32,19 +32,47 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtected = PROTECTED_PREFIXES.some((prefix) =>
-    request.nextUrl.pathname.startsWith(prefix),
+  const path = request.nextUrl.pathname;
+  const requiresAuth = AUTH_REQUIRED_PREFIXES.some((prefix) =>
+    path.startsWith(prefix),
+  );
+  const requiresUnlock = UNLOCK_REQUIRED_PREFIXES.some((prefix) =>
+    path.startsWith(prefix),
   );
 
-  if (isProtected && !user) {
+  if (requiresAuth && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (request.nextUrl.pathname === "/login" && user) {
+  // Only queried when there's a user and the route actually cares about
+  // lock state (covers /dashboard, /paywall, and /login below).
+  let isUnlocked: boolean | null = null;
+  if (user && (requiresUnlock || path === "/paywall" || path === "/login")) {
+    const { data } = await supabase
+      .from("users")
+      .select("is_unlocked")
+      .eq("id", user.id)
+      .single();
+    isUnlocked = data?.is_unlocked ?? false;
+  }
+
+  if (requiresUnlock && user && !isUnlocked) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/paywall";
+    return NextResponse.redirect(url);
+  }
+
+  if (path === "/paywall" && isUnlocked) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  if (path === "/login" && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = isUnlocked ? "/dashboard" : "/paywall";
     return NextResponse.redirect(url);
   }
 
