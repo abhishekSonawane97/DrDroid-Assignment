@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsForm } from "./settings-form";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ setup?: string }>;
+}) {
+  const { setup } = await searchParams;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,6 +26,11 @@ export default async function SettingsPage() {
         Bring your own OpenAI-compatible endpoint and API key. Your key is
         encrypted at rest and never sent back to the browser in full.
       </p>
+      {setup === "required" && (
+        <p className="border-primary/30 bg-primary/5 mb-6 rounded-lg border px-3 py-2 text-sm">
+          Set this up first — you&apos;ll need it before you can start chatting.
+        </p>
+      )}
       <SettingsForm />
     </div>
   );

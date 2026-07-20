@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const AUTH_REQUIRED_PREFIXES = ["/dashboard", "/paywall"];
 const UNLOCK_REQUIRED_PREFIXES = ["/dashboard"];
+// Chat needs a configured BYOK key to do anything — catch that before the
+// user types a message and hits Send, not after (matches the intended
+// flow: unlock -> API settings -> chat).
+const API_SETTINGS_REQUIRED_PREFIXES = ["/dashboard/chat"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -62,6 +66,22 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/paywall";
     return NextResponse.redirect(url);
+  }
+
+  const requiresApiSettings = API_SETTINGS_REQUIRED_PREFIXES.some((prefix) =>
+    path.startsWith(prefix),
+  );
+  if (requiresApiSettings && user && isUnlocked) {
+    const { count } = await supabase
+      .from("api_keys")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    if (!count) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/settings";
+      url.searchParams.set("setup", "required");
+      return NextResponse.redirect(url);
+    }
   }
 
   if (path === "/paywall" && isUnlocked) {
