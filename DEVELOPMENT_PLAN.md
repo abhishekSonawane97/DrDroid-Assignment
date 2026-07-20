@@ -96,11 +96,16 @@ The reviewer should be able to:
 
 ## Phase 2 — Authentication
 
-- [ ] **2.1** Supabase Auth: enable Google + GitHub providers, OAuth callback route.
-- [ ] **2.2** Server/client session helpers; bootstrap a `users` row on first login (`credits = 0`, `is_unlocked = false`).
-- [ ] **2.3** Middleware: unauthenticated → `/login`.
+- [x] **2.1** Supabase Auth: Google + GitHub enabled in `supabase/config.toml`; `/login` page + `/auth/callback` route built. **Blocked on real OAuth app credentials — see note.**
+- [x] **2.2** Session helpers (`lib/supabase/client.ts` / `server.ts`, from Phase 0) + DB trigger (`supabase/seed.sql`) that bootstraps a `users` row (`credits = 0`, `is_unlocked = false`) on every new `auth.users` insert, any provider/flow.
+- [x] **2.3** `proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts` — see note) redirects unauthenticated requests to `/dashboard/*` to `/login`, and authenticated requests away from `/login` to `/dashboard`.
 
-**Done when:** both providers log in, a `users` row exists, protected routes redirect.
+**Done when:** both providers log in ⏳ (code complete, needs real OAuth apps — see below), a `users` row exists ✅ (trigger verified logically, needs a real login to fire), protected routes redirect ✅ (smoke-tested: unauthenticated `/dashboard` → 307 to `/login`).
+
+**Notes:**
+- **Real credentials required, blocking full verification.** Google/GitHub OAuth apps must be created by a human in each provider's own console — this can't be done via API/CLI. Redirect URI to register (both providers): `http://127.0.0.1:54321/auth/v1/callback` (local). Once created, put `GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` / `GITHUB_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET` in `.env.local`, then `npx supabase stop && npx supabase start` to pick them up.
+- **`middleware.ts` → `proxy.ts`:** Next.js 16 renamed the file convention (functionality unchanged); `npm run build` flagged the deprecation warning immediately, confirmed against `node_modules/next/dist/docs`.
+- `app/dashboard/page.tsx` is a placeholder proving the auth gate works end-to-end (also double-checks auth server-side, per Next.js's own guidance that Proxy should only do *optimistic* checks) — the real sidebar shell is built in later phases.
 
 ## Phase 3 — Paywall & unlock
 

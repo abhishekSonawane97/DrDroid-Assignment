@@ -1,5 +1,5 @@
 -- Run this once after `npm run db:push` (and again any time db:push adds
--- a new user-owned table). Two things this covers that `db:push` alone
+-- a new user-owned table). Three things this covers that `db:push` alone
 -- does not:
 --
 -- 1. Baseline grants. Tables here are created by Drizzle, not Supabase's
@@ -99,3 +99,32 @@ drop policy if exists coupon_redemptions_select_own on coupon_redemptions;
 create policy coupon_redemptions_select_own on coupon_redemptions
   for select to authenticated
   using (auth.uid() = user_id);
+
+-- 3. Bootstrap a public.users profile row whenever Supabase Auth creates a
+--    new auth.users row (any provider, any flow), rather than relying on
+--    app code in the OAuth callback to remember to do it. security definer
+--    is required: this fires as the auth trigger role, which has no
+--    privileges on public.users otherwise.
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.users (id, email, provider, credits, is_unlocked)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_app_meta_data->>'provider', 'unknown'),
+    0,
+    false
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_auth_user();
