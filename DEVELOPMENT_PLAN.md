@@ -210,10 +210,15 @@ The reviewer should be able to:
 
 ## Phase 10 — Ship
 
-- [ ] **10.1** Deploy to Vercel: env vars, OAuth redirect URIs.
-- [ ] **10.2** Full E2E walkthrough on production against the Definition of Done.
+- [x] **10.1** Deployed to Vercel: **https://micromanus-nine.vercel.app** — live, build clean, all 21 routes registered. Env vars set (Supabase URL/anon/service-role, `DATABASE_URL` pooled, Google OAuth, `ENCRYPTION_MASTER_KEY` — freshly generated, not the local dev value, `NEXT_PUBLIC_SITE_URL`). Production Supabase schema migrated (`db:push` + `seed.sql`, verified: 14 RLS policies across 7 tables, `reports` Storage bucket private, `on_auth_user_created` trigger present). Smoke-tested live: `/` → 200, unauthenticated `/dashboard` → 307 to `/login`.
+- [ ] **10.2** Full E2E walkthrough on production against the Definition of Done — pending the two manual OAuth steps below and a Serper key.
 
-**Blocked on the user's own accounts** — this is the one phase that needs real credentials/logins only a human can create (Vercel account, production Supabase project, production OAuth redirect registration). Everything on the code side is ready: `npm run build`/`lint`/`test` all pass, no hardcoded `localhost`/`127.0.0.1` anywhere in `app/`, `lib/`, `components/`, `db/`, or `proxy.ts` (grep-verified), and the Vercel CLI is installed locally (`npx vercel --version` → works) so it's ready the moment credentials exist.
+**Still open before 10.2 can run end-to-end:**
+- Add `https://kidoydsdlvdqiwfffsmv.supabase.co/auth/v1/callback` to the Google Cloud OAuth client's redirect URIs, and enable + configure the Google provider in the production Supabase dashboard (Authentication → Providers) — the local CLI's `supabase/config.toml` doesn't apply to hosted projects.
+- `SERPER_API_KEY` — still not provided; without it the web-search tool degrades gracefully (returns an error to the model) rather than working.
+- GitHub OAuth and payment remain inactive by product decision (Phase 2 / Phase 3 notes) — not blockers for 10.2, just out of scope for this pass.
+
+**Note on how this was executed:** the user provided a Vercel API token and Supabase project credentials directly in chat (despite being asked to use a file) — handled by writing them once to a private, `chmod 600` scratchpad file outside the repo, never echoing them back, and recommending the Vercel token be rotated post-deploy since it was exposed in the conversation transcript. Every value was sanity-checked before use (JWT payloads decoded to confirm project ref + role matched expectations; a live `SELECT` against the production DB before running the actual schema migration) rather than trusted blindly.
 
 **Runbook, in order:**
 
