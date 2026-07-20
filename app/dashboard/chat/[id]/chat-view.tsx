@@ -50,8 +50,17 @@ export function ChatView({
                 if (part.type === "tool-webSearch") {
                   return <SearchToolPart key={i} part={part} />;
                 }
+                if (part.type === "tool-generateReport") {
+                  return <ReportToolPart key={i} part={part} />;
+                }
                 return null;
               })}
+              {(message.metadata as { pdfPath?: string } | undefined)
+                ?.pdfPath && (
+                <ReportDownloadLink
+                  path={(message.metadata as { pdfPath: string }).pdfPath}
+                />
+              )}
             </div>
           </div>
         ))}
@@ -124,5 +133,75 @@ function SearchToolPart({
         ))}
       </ul>
     </div>
+  );
+}
+
+interface ReportToolOutput {
+  title?: string;
+  downloadUrl?: string;
+}
+
+function ReportToolPart({
+  part,
+}: {
+  part: { state: string; output?: unknown };
+}) {
+  if (part.state !== "output-available") {
+    return (
+      <p className="text-muted-foreground not-prose text-sm italic">
+        📄 Generating report…
+      </p>
+    );
+  }
+
+  const output = part.output as ReportToolOutput | undefined;
+  if (!output?.downloadUrl) return null;
+
+  return (
+    <p className="not-prose my-2">
+      <a
+        href={output.downloadUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary text-sm font-medium hover:underline"
+      >
+        📄 Download {output.title ?? "report"} (PDF)
+      </a>
+    </p>
+  );
+}
+
+// For a report generated in an earlier session — the signed URL from that
+// time has expired, so a fresh one is minted on click.
+function ReportDownloadLink({ path }: { path: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function download() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/report/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const data = await res.json();
+      if (data.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <p className="not-prose my-2">
+      <button
+        onClick={download}
+        disabled={loading}
+        className="text-primary text-sm font-medium hover:underline disabled:opacity-50"
+      >
+        📄 {loading ? "Opening…" : "Download report (PDF)"}
+      </button>
+    </p>
   );
 }

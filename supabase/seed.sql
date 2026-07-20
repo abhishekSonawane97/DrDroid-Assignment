@@ -1,5 +1,5 @@
 -- Run this once after `npm run db:push` (and again any time db:push adds
--- a new user-owned table). Three things this covers that `db:push` alone
+-- a new user-owned table). Four things this covers that `db:push` alone
 -- does not:
 --
 -- 1. Baseline grants. Tables here are created by Drizzle, not Supabase's
@@ -128,3 +128,21 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
+
+-- 4. PDF report storage. Private bucket (not public) — files are only
+--    reachable via short-lived signed URLs. Objects are stored at
+--    `{user_id}/{report_id}.pdf`; RLS checks the first path segment
+--    against auth.uid(), same ownership pattern as every other table.
+insert into storage.buckets (id, name, public)
+values ('reports', 'reports', false)
+on conflict (id) do nothing;
+
+drop policy if exists reports_select_own on storage.objects;
+create policy reports_select_own on storage.objects
+  for select to authenticated
+  using (bucket_id = 'reports' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists reports_insert_own on storage.objects;
+create policy reports_insert_own on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'reports' and (storage.foldername(name))[1] = auth.uid()::text);

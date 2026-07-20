@@ -42,6 +42,9 @@ export default async function ChatThreadPage({
     id: m.id,
     role: m.role as "user" | "assistant",
     parts: [{ type: "text", text: m.content }],
+    // Signed URLs expire, so only the storage path is carried through —
+    // the UI re-signs it on demand via POST /api/report/sign.
+    metadata: m.pdfUrl ? { pdfPath: m.pdfUrl } : undefined,
   }));
 
   return <ChatView threadId={id} initialMessages={initialMessages} />;

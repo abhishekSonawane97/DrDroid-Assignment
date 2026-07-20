@@ -182,11 +182,16 @@ The reviewer should be able to:
 
 ## Phase 8 — PDF reports
 
-- [ ] **8.1** pdf-lib generator: title, sections, references, timestamp, conversation metadata.
-- [ ] **8.2** `POST /api/report` → upload to Supabase Storage → **signed URL** (not public); persist on `messages.pdf_url`.
-- [ ] **8.3** Expose PDF as an agent tool + download affordance in UI.
+- [x] **8.1** `lib/pdf.ts` (pdf-lib) — title, sections, references, timestamp, conversation metadata. Hand-rolled word-wrapping + pagination (pdf-lib does neither automatically).
+- [x] **8.2** `POST /api/report` (+ `lib/report.ts` shared helper) → uploads to the `reports` Storage bucket (private, `{user_id}/{report_id}.pdf`) → **signed URL** (not public), 1hr expiry; persists the storage path on `messages.pdf_url`. `POST /api/report/sign` mints a fresh signed URL for older reports whose original URL expired.
+- [x] **8.3** `generateReport` agent tool (`lib/ai/tools.ts`'s `getAgentTools`, a per-request factory closing over the caller's own authenticated Supabase client/userId/threadId) + chat UI renders live "Generating report…" → download link, and historical messages carrying `pdf_url` get a re-sign-on-click download button.
 
-**Done when:** a report generates, downloads, and is **not** readable by another user's session.
+**Done when:** a report generates ✅, downloads ✅, and is **not** readable by another user's session ✅ — **all verified end-to-end**, no external API key needed (PDF generation and Storage are both fully local).
+
+**Notes:**
+- **How it was verified, fully end-to-end:** minted real JWTs for two test users (HS256, signed with the local dev's published `JWT_SECRET` — same technique as Phase 1's RLS test, extended to Supabase's Storage HTTP API this time via `@supabase/supabase-js` rather than raw SQL) and drove the *actual* `reports` bucket through the real Storage API: user A uploads to their own folder (succeeds), user A tries to upload into user B's folder (RLS rejects — "new row violates row-level security policy"), user B tries to sign a URL for user A's file (RLS makes it invisible — "Object not found", not even a permission-denied leak), user A signs and downloads their own file (succeeds, bytes match exactly what was uploaded). Separately confirmed the actual `generateReportPdf()` function (not a stub) produces a real, valid PDF (correct `%PDF-` magic bytes, multi-section word-wrapping exercised).
+- Storage RLS (`reports_insert_own`/`reports_select_own` in `supabase/seed.sql`) follows the same `(storage.foldername(name))[1] = auth.uid()::text` pattern Supabase documents for per-user file isolation — same ownership model as every Postgres table's RLS policy this project uses, just applied to `storage.objects` instead.
+- `createReport()` uses the *caller's own* authenticated Supabase client (from `lib/supabase/server.ts`), not a service-role/privileged connection — unlike the Drizzle-based writes elsewhere in this app, the Storage RLS policy is the actual enforcement mechanism here, not an app-level `WHERE user_id = ...` check.
 
 ## Phase 9 — Hardening
 

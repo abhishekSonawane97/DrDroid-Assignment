@@ -14,7 +14,7 @@ import {
   usageLogs,
 } from "@/db/schema";
 import { getUserModel } from "@/lib/ai/provider";
-import { agentTools } from "@/lib/ai/tools";
+import { getAgentTools } from "@/lib/ai/tools";
 import { calculateCost } from "@/lib/cost";
 import { refundCredit, reserveCredit } from "@/lib/credits";
 import { decrypt } from "@/lib/crypto";
@@ -97,9 +97,16 @@ export async function POST(request: Request) {
       system:
         "You are a helpful AI research assistant. Use the webSearch tool " +
         "when a question needs current information or facts you're not " +
-        "confident about. Cite sources by URL when you use search results.",
+        "confident about. Cite sources by URL when you use search results. " +
+        "Use the generateReport tool only when the user explicitly asks " +
+        "for a report, summary document, or PDF.",
       messages: await convertToModelMessages(messages),
-      tools: agentTools,
+      tools: getAgentTools({
+        supabase,
+        userId: user.id,
+        threadId,
+        threadTitle: thread.title,
+      }),
       stopWhen: stepCountIs(MAX_AGENT_STEPS),
       onFinish: async ({ text, usage }) => {
         const [assistantMessage] = await db
