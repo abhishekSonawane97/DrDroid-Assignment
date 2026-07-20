@@ -15,9 +15,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.12",
+    "@ai-sdk/react": "^4.0.34",
     "@base-ui/react": "^1.6.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.109.0",
+    "@tailwindcss/typography": "^0.5.20",
+    "ai": "^7.0.31",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -26,6 +30,7 @@
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
     "shadcn": "^4.13.1",
     "stripe": "^22.3.2",
     "tailwind-merge": "^3.6.0",

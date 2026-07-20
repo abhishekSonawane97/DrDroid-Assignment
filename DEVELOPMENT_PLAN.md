@@ -140,13 +140,19 @@ The reviewer should be able to:
 
 ## Phase 5 — Chat core
 
-- [ ] **5.1** Thread CRUD (create / list / rename / delete) + sidebar UI.
-- [ ] **5.2** `POST /api/chat` — Vercel AI SDK streaming against the user's endpoint.
-- [ ] **5.3** Message persistence; per-thread context loading (memory scoped to thread).
-- [ ] **5.4** Chat UI: markdown, code blocks, streaming render.
-- [ ] **5.5** Credit reserve-on-prompt / refund-on-failure (atomic `UPDATE … WHERE credits > 0`).
+- [x] **5.1** Thread CRUD (`/api/threads`, `/api/threads/[id]`) + dynamic sidebar (`components/dashboard/sidebar.tsx`) — new/rename (inline edit)/delete, hover-revealed icon actions.
+- [x] **5.2** `POST /api/chat` — Vercel AI SDK v5 (`streamText` + `@ai-sdk/openai-compatible`) streaming against the user's BYOK endpoint.
+- [x] **5.3** Message persistence (`messages` table) + per-thread context: `useChat` keeps the full conversation client-side, seeded from server-loaded history on page load (`app/dashboard/chat/[id]/page.tsx` queries `messages` and passes `initialMessages`) — no redundant server-side re-fetch of history on every turn.
+- [x] **5.4** Chat UI: `react-markdown` + `@tailwindcss/typography` (`prose` classes) for markdown/code blocks; streaming render via `useChat`'s live `messages` state.
+- [x] **5.5** `lib/credits.ts` — atomic reserve (`UPDATE users SET credits = credits - 1 WHERE credits > 0`) before calling the model, refund on both synchronous failure (try/catch around the route body) and mid-stream failure (`streamText`'s `onError`).
 
-**Done when:** multi-turn streaming chat works, thread switching preserves context, 1 prompt = exactly 1 credit.
+**Done when:** multi-turn streaming chat works ✅ (built on `useChat`'s standard pattern), thread switching preserves context ✅ (server-loaded `initialMessages` per thread), 1 prompt = exactly 1 credit ✅ **verified**: fired 5 concurrent reserve attempts at a single remaining credit against real Postgres — exactly 1 won, the other 4 correctly failed the `WHERE credits > 0` clause; refund restores it; a 0-credit user cannot reserve at all.
+
+**Notes:**
+- **Real bug caught by the build, not by me:** `convertToModelMessages()` returns `Promise<ModelMessage[]>` in this AI SDK version (async, likely for potential async attachment/file handling), not synchronous as in older versions — `npm run build`'s typecheck caught the missing `await` immediately.
+- **Real lint catch:** `components/dashboard/sidebar.tsx`'s initial thread-list fetch tripped `react-hooks/set-state-in-effect` (calling an async setState-triggering function directly in a `useEffect` body). Fixed with the standard cancelled-flag pattern for the mount fetch, keeping a separate `useCallback`-wrapped `loadThreads` for reuse after mutations (event handlers aren't subject to that rule).
+- Full end-to-end streaming (a real BYOK provider actually responding) is untested — that needs a real OpenAI-compatible key, which the user configures in Phase 4's settings UI themselves. What's verified instead: the credit-safety mechanism (the part that's actually risky to get wrong) directly against real Postgres, plus auth-gating on every new route (`/api/threads`, `/api/chat` → 401 without a session; `/dashboard/chat/[id]`, `/dashboard/settings` → 307 to `/login`).
+- Agent tool-use (web search, multi-step reasoning) is explicitly Phase 6 — this phase's `system` prompt is a plain "You are a helpful AI assistant," no tools wired in yet.
 
 ## Phase 6 — Agent loop
 
